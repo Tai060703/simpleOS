@@ -42,17 +42,12 @@ struct vm_area_struct {
    struct vm_area_struct *vm_next;
 };
 
-struct LRU_node
-{
-   int LRU_pgn;
-   struct LRU_node *next_pgn;
-};
 /* 
  * Memory management struct
  */
 struct mm_struct {
    uint32_t *pgd;
-   struct LRU_node *LRU_stack_head;
+
    struct vm_area_struct *mmap;
 
    /* Currently we support a fixed number of symbol */

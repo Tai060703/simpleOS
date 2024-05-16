@@ -82,6 +82,7 @@ int tlbread(struct pcb_t * proc, uint32_t source,
   /* frmnum is return value of tlb_cache_read/write value*/
 	
 #ifdef IODUMP
+  // Print whether TLB hit or miss for debugging
   if (frmnum >= 0)
     printf("TLB hit at read region=%d offset=%d\n", 
 	         source, offset);
@@ -93,7 +94,7 @@ int tlbread(struct pcb_t * proc, uint32_t source,
 #endif
   MEMPHY_dump(proc->mram);
 #endif
-
+  // Read data from memory
   int val = __read(proc, 0, source, offset, &data);
 
   destination = (uint32_t) data;
@@ -101,7 +102,7 @@ int tlbread(struct pcb_t * proc, uint32_t source,
   /* TODO update TLB CACHED with frame num of recent accessing page(s)*/
   /* by using tlb_cache_read()/tlb_cache_write()*/
 
-  return val;
+  return val;       // Return the return value of the __read function
 }
 
 /*tlbwrite - CPU TLB-based write a region memory
@@ -121,6 +122,7 @@ int tlbwrite(struct pcb_t * proc, BYTE data,
   frmnum is return value of tlb_cache_read/write value*/
 
 #ifdef IODUMP
+  // Print whether TLB hit or miss for debugging
   if (frmnum >= 0)
     printf("TLB hit at write region=%d offset=%d value=%d\n",
 	          destination, offset, data);
@@ -132,7 +134,7 @@ int tlbwrite(struct pcb_t * proc, BYTE data,
 #endif
   MEMPHY_dump(proc->mram);
 #endif
-
+  // Write data to memory
   val = __write(proc, 0, destination, offset, data);
 
   /* TODO update TLB CACHED with frame num of recent accessing page(s)*/

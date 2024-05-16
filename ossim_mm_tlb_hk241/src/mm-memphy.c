@@ -6,7 +6,7 @@
 
 #include "mm.h"
 #include <stdlib.h>
-
+#include <stdio.h>
 /*
  *  MEMPHY_mv_csr - move MEMPHY cursor
  *  @mp: memphy struct
@@ -97,8 +97,10 @@ int MEMPHY_write(struct memphy_struct * mp, int addr, BYTE data)
    if (mp == NULL)
      return -1;
 
-   if (mp->rdmflg)
+   if (mp->rdmflg) {
       mp->storage[addr] = data;
+   }
+      
    else /* Sequential access device */
       return MEMPHY_seq_write(mp, addr, data);
 
@@ -140,7 +142,6 @@ int MEMPHY_format(struct memphy_struct *mp, int pagesz)
 int MEMPHY_get_freefp(struct memphy_struct *mp, int *retfpn)
 {
    struct framephy_struct *fp = mp->free_fp_list;
-
    if (fp == NULL)
      return -1;
 
@@ -160,7 +161,10 @@ int MEMPHY_dump(struct memphy_struct * mp)
     /*TODO dump memphy contnt mp->storage 
      *     for tracing the memory content
      */
-
+    printf("----------------MEMORY CONTENT-------------- \n");
+    printf("Address: Content \n");
+    for (int i = 0; i < mp->maxsz; i++)
+      if (mp->storage[i]) printf("0x%08x: %08x \n", i, mp->storage[i]);
     return 0;
 }
 
@@ -176,7 +180,75 @@ int MEMPHY_put_freefp(struct memphy_struct *mp, int fpn)
 
    return 0;
 }
+int MEMPHY_remove_usedfp(struct memphy_struct *mem_phy, int frame_number){
+   // Start with the first frame in the used frame list
+   struct framephy_struct *current_frame = mem_phy->used_fp_list;
 
+   // Check if the used frame list is empty
+   if (!current_frame) return -1;
+
+   // If the first frame matches the frame number, remove it from the list
+   if (current_frame->fpn == frame_number) {
+      mem_phy->used_fp_list = mem_phy->used_fp_list->fp_next;
+      current_frame->fp_next = NULL;
+      return 0;
+   }
+   else {
+      // Iterate through the list to find the frame with the specified number
+      while (current_frame->fp_next) {
+         if (current_frame->fp_next->fpn == frame_number) {
+            // Remove the frame from the list
+            struct framephy_struct *ret = current_frame->fp_next;
+            current_frame->fp_next = current_frame->fp_next->fp_next;
+            ret->fp_next = NULL;
+            return 0;
+         }
+         else current_frame = current_frame->fp_next;
+      }
+      return -1; // Return -1 if the specified frame number is not found
+   }
+}
+
+int MEMPHY_put_usedfp(struct memphy_struct *mem_phy, int frame_number, struct mm_struct *owner)
+{
+   struct framephy_struct *current_frame = mem_phy->used_fp_list;
+   struct framephy_struct *new_frame_node = malloc(sizeof(struct framephy_struct));
+
+   /* Create a new node with the specified frame number */
+   new_frame_node->fpn = frame_number;
+   new_frame_node->owner = owner;
+   new_frame_node->fp_next = NULL;
+
+   /* Push the new frame to the end of the list */
+   if (!current_frame) {
+      mem_phy->used_fp_list = new_frame_node;
+   }
+   else {
+      while (current_frame->fp_next) {
+         current_frame = current_frame->fp_next;
+      } 
+      current_frame->fp_next = new_frame_node;
+   }
+   return 0;
+}
+
+struct framephy_struct* MEMPHY_get_usedfp(struct memphy_struct *mem_phy)
+{
+   struct framephy_struct *current_frame = mem_phy->used_fp_list;
+
+   // Return NULL if the used frame list is empty
+   if (current_frame == NULL)
+     return NULL;
+
+   // Move to the next frame in the list
+   mem_phy->used_fp_list = current_frame->fp_next;
+
+   /* 
+    * The used frames are iteratively retrieved until the memory is exhausted.
+    * If there's no garbage collector acting, frames may not be released.
+    */
+   return current_frame;
+}
 
 /*
  *  Init MEMPHY struct
@@ -185,7 +257,7 @@ int init_memphy(struct memphy_struct *mp, int max_size, int randomflg)
 {
    mp->storage = (BYTE *)malloc(max_size*sizeof(BYTE));
    mp->maxsz = max_size;
-
+   mp->used_fp_list = NULL;
    MEMPHY_format(mp,PAGING_PAGESZ);
 
    mp->rdmflg = (randomflg != 0)?1:0;
